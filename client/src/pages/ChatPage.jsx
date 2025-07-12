@@ -84,7 +84,15 @@ export default function ChatPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
+    <Box
+      sx={{
+      display: 'flex',
+      flexDirection: { xs: 'column', md: 'row' },
+      height: '100vh',
+      padding: { xs: 1, md: 2 }
+      }}
+    >
+
       {/* Friends List */}
       <Box sx={{ width: 300, borderRight: '1px solid #ccc', overflowY: 'auto' }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" p={2}>
