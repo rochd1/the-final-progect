@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // adjust this if your backend URL/port differs
+  baseURL: 'https://the-lab-phase-back.onrender.com/api', 
 });
 
 // Automatically attach the token to every request
