@@ -4,7 +4,7 @@ import io from 'socket.io-client';
 import api from '../api';
 import { useNavigate } from 'react-router-dom';
 
-const socket = io('http://localhost:5000'); // Adjust if backend is hosted elsewhere
+const socket = io('https://the-lab-phase-back.onrender.com'); 
 
 export default function ChatPage() {
   const navigate = useNavigate();
