@@ -57,6 +57,12 @@ export default function SearchUserPage() {
   return (
     <Box sx={{ maxWidth: 600, mx: 'auto', mt: 5 }}>
       <Typography variant="h5" mb={2}>Add a Friend by VibeCode</Typography>
+
+      {/* ✅ Display logged-in user's VibeCode */}
+      <Typography variant="subtitle1" color="text.secondary" mb={2}>
+        Your VibeCode: <strong>{currentUser?.vibeCode}</strong>
+      </Typography>
+
       <TextField
         label="Enter VibeCode (e.g. john!1234)"
         fullWidth
@@ -64,6 +70,7 @@ export default function SearchUserPage() {
         onChange={e => setVibeCode(e.target.value)}
       />
       <Button variant="contained" fullWidth sx={{ mt: 2 }} onClick={searchUser}>Search</Button>
+
       {foundUser && (
         <Paper sx={{ mt: 3, p: 2 }}>
           <Typography variant="h6">{foundUser.username}</Typography>
@@ -71,6 +78,7 @@ export default function SearchUserPage() {
           <Button variant="outlined" sx={{ mt: 1 }} onClick={sendRequest}>Send Friend Request</Button>
         </Paper>
       )}
+
       {message && <Typography mt={2} color="primary">{message}</Typography>}
 
       <Typography variant="h6" mt={5}>Pending Friend Requests</Typography>
