@@ -5,7 +5,7 @@ import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
 import SearchUserPage from './pages/SearchUserPage';
 import { io } from 'socket.io-client';
-const socket = io();
+const socket = io('https://the-lab-phase-back.onrender.com/api');
 
 const App = () => {
   return (
