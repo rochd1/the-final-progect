@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import friendRoutes from './routes/friends.js';
 import messageRoutes from './routes/messages.js';
-import Message from './models/Message.js'; // ✅ Don't forget this import if using Message model
+import Message from './models/Message.js';
 
 dotenv.config();
 
@@ -21,7 +21,7 @@ const io = new Server(server, {
   cors: { origin: '*', credentials: true }
 });
 
-// Middlewares
+// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -30,13 +30,13 @@ app.use('/auth', authRoutes);
 app.use('/friends', friendRoutes);
 app.use('/messages', messageRoutes);
 
-// Static Frontend (React build)
+// Static Frontend (Vite build)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(express.static(path.join(__dirname, 'client/build')));
+app.use(express.static(path.join(__dirname, 'client/dist')));
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
+  res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
 });
 
 // Socket.IO
