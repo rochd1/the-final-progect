@@ -63,7 +63,7 @@ export default function SearchUserPage() {
       
       // Try both VibeCode and email endpoints
       const endpoints = [
-        `/auth/search/vibecode/${searchInput.trim()}`,
+        `/auth/search/${searchInput.trim()}`,
         `/auth/search/email/${searchInput.trim()}`
       ];
       
