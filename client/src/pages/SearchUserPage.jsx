@@ -108,9 +108,10 @@ export default function SearchUserPage() {
     try {
       setLoading(prev => ({ ...prev, request: true }));
       
-      const res = await api.post('/friends/request', {
+      const res = await api.post("/friends/request", {
         fromId: currentUser._id,
-        toId: foundUser._id,  // More reliable than vibeCode
+        toId: foundUser._id, // More reliable than vibeCode
+        vibeCode: searchInput.trim(),
       });
       
       setMessage({ 
