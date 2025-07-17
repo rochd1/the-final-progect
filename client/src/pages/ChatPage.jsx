@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -34,9 +34,11 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Scroll to bottom helper
+  // Scroll to bottom helper (now uses 'auto' for instant scroll)
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
   }, []);
 
   // Load friends to find selected friend info
@@ -69,7 +71,7 @@ export default function ChatPage() {
     if (friend) {
       setSelectedFriend(friend);
     } else {
-      navigate('/friends'); // friend not found, go back to friend list
+      navigate('/friends');
     }
   }, [friendId, friends, navigate]);
 
@@ -84,7 +86,8 @@ export default function ChatPage() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMessages(res.data);
-        scrollToBottom();
+        // Add slight delay to ensure DOM is ready
+        setTimeout(scrollToBottom, 0);
       } catch (error) {
         enqueueSnackbar('Failed to load messages', { variant: 'error' });
         console.error('Error fetching messages:', error.response || error.message || error);
@@ -96,16 +99,13 @@ export default function ChatPage() {
     fetchMessages();
   }, [selectedFriend, user._id, token, scrollToBottom, enqueueSnackbar]);
 
-  // Socket events
+  // Socket events (optimized to avoid unnecessary reconnects)
   useEffect(() => {
     if (!user?._id) return;
 
-    const handleConnect = () => {
-      socket.emit('join', user._id);
-    };
-
     const handleReceiveMessage = (msg) => {
-      if (selectedFriend && msg.from === selectedFriend._id) {
+      // Add message if it belongs to current chat
+      if (selectedFriend && (msg.from === selectedFriend._id || msg.to === selectedFriend._id)) {
         setMessages(prev => [...prev, msg]);
         scrollToBottom();
       }
@@ -120,20 +120,24 @@ export default function ChatPage() {
       }
     };
 
-    socket.on('connect', handleConnect);
+    socket.connect();
+    socket.emit('join', user._id);
     socket.on('receiveMessage', handleReceiveMessage);
     socket.on('typing', handleTyping);
 
-    socket.connect();
-
     return () => {
-      socket.off('connect', handleConnect);
       socket.off('receiveMessage', handleReceiveMessage);
       socket.off('typing', handleTyping);
-      socket.disconnect();
-      if (typingTimeoutRef) clearTimeout(typingTimeoutRef);
+      // Don't disconnect unless component unmounts
     };
-  }, [user._id, selectedFriend, scrollToBottom, typingTimeoutRef]);
+  }, [user._id, selectedFriend?._id]); // Only reconnect if user._id changes
+
+  // Ensure scroll to bottom when chat opens
+  useLayoutEffect(() => {
+    if (selectedFriend) {
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [selectedFriend, scrollToBottom]);
 
   // Input change and typing emit
   const handleInputChange = (e) => {
@@ -146,19 +150,33 @@ export default function ChatPage() {
     }
   };
 
-  // Send message
+  // Send message (now with optimistic UI update)
   const sendMessage = () => {
     if (!input.trim() || !selectedFriend) return;
 
+    const tempId = `temp-${Date.now()}`;
     const messageData = {
+      _id: tempId,
       from: user._id,
       to: selectedFriend._id,
       content: input.trim(),
+      timestamp: new Date().toISOString(),
     };
 
-    socket.emit('sendMessage', messageData);
+    // Optimistic update
+    setMessages(prev => [...prev, messageData]);
     setInput('');
+    scrollToBottom();
     inputRef.current?.focus();
+
+    // Emit to server
+    socket.emit('sendMessage', messageData, (ack) => {
+      if (ack?.error) {
+        // Rollback if server fails
+        setMessages(prev => prev.filter(msg => msg._id !== tempId));
+        enqueueSnackbar('Failed to send message', { variant: 'error' });
+      }
+    });
   };
 
   // Enter key send
@@ -228,8 +246,10 @@ export default function ChatPage() {
           flexGrow: 1,
           p: 2,
           overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
           backgroundImage: 'linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05))',
-          backgroundSize: 'cover'
         }}
       >
         {isLoadingMessages ? (
