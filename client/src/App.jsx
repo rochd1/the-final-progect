@@ -4,7 +4,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ChatPage from './pages/ChatPage';
 import SearchUserPage from './pages/SearchUserPage';
-import FriendListPage from './pages/FriendListPage'; // ✅
+import FriendListPage from './pages/FriendListPage';
 import NavBar from './components/NavBar';
 
 export default function App() {
@@ -24,12 +24,12 @@ export default function App() {
       {!hideNavBar && <NavBar />}
 
       <Routes>
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/friends" element={<FriendListPage />} />
-        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/chat" element={<Navigate to="/friends" replace />} />
         <Route path="/chat/:friendId" element={<ChatPage />} />
         <Route path="/search" element={<SearchUserPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/" element={<LoginPage />} />
         <Route path="*" element={<Navigate to="/friends" replace />} />
       </Routes>
     </>
