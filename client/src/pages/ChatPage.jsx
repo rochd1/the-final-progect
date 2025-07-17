@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { 
   Box, 
   Typography, 
@@ -33,14 +33,13 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const isMountedRef = useRef(true);
 
+  // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current && isMountedRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  // Load friends to find selected friend info
   useEffect(() => {
     if (!user?._id) return;
 
@@ -53,21 +52,28 @@ export default function ChatPage() {
         setFriends(res.data);
       } catch (error) {
         enqueueSnackbar('Failed to load friends', { variant: 'error' });
+        console.error('Error fetching friends:', error.response || error.message || error);
       } finally {
         setIsLoadingFriends(false);
       }
     };
 
     fetchFriends();
-    return () => { isMountedRef.current = false };
   }, [user._id, token, enqueueSnackbar]);
 
+  // Set selectedFriend by friendId param
   useEffect(() => {
     if (!friendId || friends.length === 0) return;
+
     const friend = friends.find(f => f._id === friendId);
-    friend ? setSelectedFriend(friend) : navigate('/friends');
+    if (friend) {
+      setSelectedFriend(friend);
+    } else {
+      navigate('/friends');
+    }
   }, [friendId, friends, navigate]);
 
+  // Load messages when selectedFriend changes
   useEffect(() => {
     if (!selectedFriend) return;
 
@@ -78,9 +84,10 @@ export default function ChatPage() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMessages(res.data);
-        requestAnimationFrame(() => scrollToBottom());
+        setTimeout(scrollToBottom, 100);
       } catch (error) {
         enqueueSnackbar('Failed to load messages', { variant: 'error' });
+        console.error('Error fetching messages:', error.response || error.message || error);
       } finally {
         setIsLoadingMessages(false);
       }
@@ -89,40 +96,45 @@ export default function ChatPage() {
     fetchMessages();
   }, [selectedFriend, user._id, token, scrollToBottom, enqueueSnackbar]);
 
+  // Socket events with duplicate prevention
   useEffect(() => {
-    if (!user?._id || !selectedFriend) return;
+    if (!user?._id) return;
 
     const handleReceiveMessage = (msg) => {
       setMessages(prev => {
-        const exists = prev.some(m => 
-          m._id === msg._id || 
-          (m.content === msg.content && m.timestamp === msg.timestamp)
+        // Check for duplicates by content and timestamp
+        const isDuplicate = prev.some(
+          m => m.content === msg.content && 
+          Math.abs(new Date(m.timestamp) - new Date(msg.timestamp)) < 1000
         );
-        return exists ? prev : [...prev, msg];
+        return isDuplicate ? prev : [...prev, msg];
       });
       scrollToBottom();
     };
 
     const handleTyping = (data) => {
-      if (data.senderId === selectedFriend._id) {
+      if (data.senderId === selectedFriend?._id) {
         setIsTyping(true);
-        clearTimeout(typingTimeoutRef);
-        setTypingTimeoutRef(setTimeout(() => setIsTyping(false), 2000));
+        if (typingTimeoutRef) clearTimeout(typingTimeoutRef);
+        const timeout = setTimeout(() => setIsTyping(false), 2000);
+        setTypingTimeoutRef(timeout);
       }
     };
 
-    socket.connect();
-    socket.emit('join', user._id);
     socket.on('receiveMessage', handleReceiveMessage);
     socket.on('typing', handleTyping);
+    socket.connect();
+    socket.emit('join', user._id);
 
     return () => {
       socket.off('receiveMessage', handleReceiveMessage);
       socket.off('typing', handleTyping);
-      clearTimeout(typingTimeoutRef);
+      socket.disconnect();
+      if (typingTimeoutRef) clearTimeout(typingTimeoutRef);
     };
-  }, [user._id, selectedFriend, scrollToBottom]);
+  }, [user._id, selectedFriend, scrollToBottom, typingTimeoutRef]);
 
+  // Input change and typing emit
   const handleInputChange = (e) => {
     setInput(e.target.value);
     if (selectedFriend) {
@@ -133,6 +145,7 @@ export default function ChatPage() {
     }
   };
 
+  // Send message with optimistic update
   const sendMessage = () => {
     if (!input.trim() || !selectedFriend) return;
 
@@ -143,21 +156,26 @@ export default function ChatPage() {
       to: selectedFriend._id,
       content: input.trim(),
       timestamp: new Date().toISOString(),
+      isOptimistic: true
     };
 
+    // Optimistic update
     setMessages(prev => [...prev, messageData]);
     setInput('');
+    scrollToBottom();
     inputRef.current?.focus();
-    requestAnimationFrame(() => scrollToBottom());
 
+    // Send to server
     socket.emit('sendMessage', messageData, (ack) => {
       if (ack?.error) {
+        // Rollback if failed
         setMessages(prev => prev.filter(msg => msg._id !== tempId));
         enqueueSnackbar('Failed to send message', { variant: 'error' });
       }
     });
   };
 
+  // Enter key send
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -193,6 +211,7 @@ export default function ChatPage() {
         bgcolor: 'background.paper'
       }}
     >
+      {/* Chat Header */}
       <Box
         sx={{
           p: 2,
@@ -217,6 +236,7 @@ export default function ChatPage() {
         </IconButton>
       </Box>
 
+      {/* Messages area */}
       <Box
         sx={{
           flexGrow: 1,
@@ -224,7 +244,6 @@ export default function ChatPage() {
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: 1,
           backgroundImage: 'linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05))',
         }}
       >
@@ -268,6 +287,7 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </Box>
 
+      {/* Input */}
       <Box
         sx={{
           p: 2,
