@@ -25,16 +25,14 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const pendingMessages = useRef(new Set()); // Track pending message IDs
+  const pendingMessages = useRef(new Set());
 
-  // Scroll to bottom helper
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 50);
   }, []);
 
-  // Load friends
   useEffect(() => {
     if (!user?._id) return;
 
@@ -55,14 +53,12 @@ export default function ChatPage() {
     fetchFriends();
   }, [user._id, token, enqueueSnackbar]);
 
-  // Set selected friend
   useEffect(() => {
     if (!friendId || friends.length === 0) return;
     const friend = friends.find(f => f._id === friendId);
     friend ? setSelectedFriend(friend) : navigate('/friends');
   }, [friendId, friends, navigate]);
 
-  // Load messages with scroll
   useEffect(() => {
     if (!selectedFriend) return;
 
@@ -84,16 +80,13 @@ export default function ChatPage() {
     fetchMessages();
   }, [selectedFriend, user._id, token, scrollToBottom, enqueueSnackbar]);
 
-  // Socket.IO with strict duplicate prevention
   useEffect(() => {
     if (!user?._id || !selectedFriend) return;
 
     const handleReceiveMessage = (msg) => {
-      // Skip if this message is already pending
       if (pendingMessages.current.has(msg._id)) return;
 
       setMessages(prev => {
-        // Strict duplicate check
         const isDuplicate = prev.some(m => 
           m._id === msg._id || 
           (m.content === msg.content && 
@@ -133,7 +126,16 @@ export default function ChatPage() {
     };
   }, [user._id, selectedFriend, scrollToBottom]);
 
-  // Send message with strict duplicate prevention
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    if (selectedFriend) {
+      socket.emit('typing', {
+        senderId: user._id,
+        receiverId: selectedFriend._id,
+      });
+    }
+  };
+
   const sendMessage = () => {
     if (!input.trim() || !selectedFriend) return;
 
@@ -147,15 +149,11 @@ export default function ChatPage() {
       isClientSide: true
     };
 
-    // Mark as pending immediately
     pendingMessages.current.add(messageId);
-
-    // Optimistic update
     setMessages(prev => [...prev, messageData]);
     setInput('');
     scrollToBottom();
 
-    // Send to server
     socket.emit('sendMessage', messageData, (ack) => {
       pendingMessages.current.delete(messageId);
       if (ack?.error) {
@@ -165,10 +163,97 @@ export default function ChatPage() {
     });
   };
 
-  // Rest of your component remains the same...
-  // [Keep all your existing JSX return code exactly as is]
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  if (isLoadingFriends) {
+    return (
+      <Box p={4} textAlign="center">
+        <Typography>Loading friends...</Typography>
+      </Box>
+    );
+  }
+
+  if (!selectedFriend) {
+    return (
+      <Box p={4} textAlign="center">
+        <Typography>Select a friend from the list</Typography>
+        <Button onClick={() => navigate('/friends')} sx={{ mt: 2 }}>
+          Go to Friends
+        </Button>
+      </Box>
+    );
+  }
 
   return (
-    // ... [Your existing JSX return code]
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh', bgcolor: 'background.paper' }}>
+      <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box display="flex" alignItems="center">
+          <Avatar alt={selectedFriend.username} src={selectedFriend.avatarUrl} sx={{ mr: 2 }} />
+          <Box>
+            <Typography variant="h6" fontWeight="bold">{selectedFriend.username}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {isTyping ? <span style={{ color: 'primary.main' }}>typing...</span> : selectedFriend.email}
+            </Typography>
+          </Box>
+        </Box>
+        <IconButton>
+          <MoreVertIcon />
+        </IconButton>
+      </Box>
+
+      <Box sx={{ flexGrow: 1, p: 2, overflowY: 'auto', display: 'flex', flexDirection: 'column', backgroundImage: 'linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05))' }}>
+        {isLoadingMessages ? (
+          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+            <CircularProgress />
+          </Box>
+        ) : messages.length === 0 ? (
+          <Box textAlign="center" mt={4}>
+            <Typography>No messages yet. Start the conversation!</Typography>
+          </Box>
+        ) : (
+          messages.map(msg => (
+            <Box key={msg._id} sx={{ mb: 2, display: 'flex', flexDirection: msg.from === user._id ? 'row-reverse' : 'row', alignItems: 'center' }}>
+              <Box sx={{
+                maxWidth: '70%',
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: msg.from === user._id ? 'primary.main' : 'grey.200',
+                color: msg.from === user._id ? 'primary.contrastText' : 'text.primary',
+                position: 'relative'
+              }}>
+                <Typography>{msg.content}</Typography>
+                <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                  {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+                </Typography>
+              </Box>
+            </Box>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </Box>
+
+      <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center' }}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Type your message..."
+          value={input}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          multiline
+          maxRows={4}
+          inputRef={inputRef}
+          sx={{ mr: 1 }}
+        />
+        <Button variant="contained" color="primary" onClick={sendMessage} disabled={!input.trim()}>
+          <SendIcon />
+        </Button>
+      </Box>
+    </Box>
   );
 }
